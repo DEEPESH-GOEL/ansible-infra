@@ -1,0 +1,8 @@
+---
+- name: Configure EC2 Instance
+  hosts: ec2_instances
+  become: yes
+  gather_facts: yes
+
+  roles:
+    - ec2_setup

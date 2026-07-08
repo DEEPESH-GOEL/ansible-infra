@@ -1,0 +1,32 @@
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install required packages
+  apt:
+    name:
+      - nginx
+      - python3-pip
+      - git
+      - unzip
+    state: present
+
+- name: Start and enable nginx
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+  notify: reload nginx
+
+- name: Harden SSH - disable root login
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^PermitRootLogin'
+    line: 'PermitRootLogin no'
+  notify: restart sshd
+
+- name: Set up log rotation for app
+  template:
+    src: logrotate.j2
+    dest: /etc/logrotate.d/myapp

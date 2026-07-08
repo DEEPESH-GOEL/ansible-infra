@@ -1,0 +1,35 @@
+- name: Create S3 bucket
+  amazon.aws.s3_bucket:
+    name: "{{ s3_bucket_name }}"
+    region: "{{ aws_region }}"
+    state: present
+    versioning: yes
+    tags:
+      Environment: production
+      ManagedBy: ansible
+
+- name: Enable S3 bucket encryption
+  amazon.aws.s3_bucket:
+    name: "{{ s3_bucket_name }}"
+    region: "{{ aws_region }}"
+    encryption: AES256
+
+- name: Block all public access
+  amazon.aws.s3_bucket:
+    name: "{{ s3_bucket_name }}"
+    region: "{{ aws_region }}"
+    public_access:
+      block_public_acls: true
+      block_public_policy: true
+      ignore_public_acls: true
+      restrict_public_buckets: true
+
+- name: Set lifecycle policy
+  amazon.aws.s3_lifecycle:
+    name: "{{ s3_bucket_name }}"
+    region: "{{ aws_region }}"
+    rule_id: expire-old-logs
+    prefix: logs/
+    expiration_days: 90
+    status: enabled
+    state: present
