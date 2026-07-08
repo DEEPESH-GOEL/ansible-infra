@@ -1,6 +1,6 @@
 ---
 - name: Configure EC2 Instance
-  hosts: ec2_instances
+  hosts: myec2
   become: yes
   gather_facts: yes
 
