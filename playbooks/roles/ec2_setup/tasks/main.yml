@@ -1,10 +1,10 @@
 - name: Update apt cache
-  dnf:
+  yum:
     update_cache: yes
     cache_valid_time: 3600
 
 - name: Install required packages
-  dnf:
+  yum:
     name:
       - nginx
       - python3-pip
