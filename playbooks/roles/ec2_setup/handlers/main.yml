@@ -1,5 +1,9 @@
 - name: reload nginx
-  service: name=nginx state=reloaded
+  service:
+    name: nginx
+    state: reloaded
 
 - name: restart sshd
-  service: name=sshd state=restarted
+  service:
+    name: sshd
+    state: restarted
