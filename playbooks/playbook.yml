@@ -2,7 +2,9 @@
 - name: Configure EC2 Instance
   hosts: myec2
   become: yes
+  become_user: root
   gather_facts: yes
+  remote_user: ec2-user
 
   roles:
     - ec2_setup
