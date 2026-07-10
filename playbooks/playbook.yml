@@ -1,11 +1,23 @@
 ---
 - name: Configure EC2 Instance
-  hosts: myec2
-  gather_facts: no
-  remote_user: ec2-user
+  hosts: all
+  become: yes
+
   tasks:
-    - name: Install required packages
-      ansible.builtin.raw: sudo yum install -y nginx python3-pip git unzip
+    - name: Install nginx from Amazon Linux Extras
+      shell: amazon-linux-extras install nginx1 -y
+
+    - name: Install other required packages
+      yum:
+        name:
+          - python3-pip
+          - git
+          - unzip
+        state: present
 
     - name: Enable and start nginx
-      ansible.builtin.raw: sudo systemctl enable nginx && sudo systemctl start nginx
+      systemd:
+        name: nginx
+        enabled: yes
+        state: started
+
