@@ -1,10 +1,16 @@
 ---
-- name: Configure EC2 Instance
+- name: Diagnose EC2 Connection
   hosts: myec2
-  become: yes
-  become_user: root
   gather_facts: no
   remote_user: ec2-user
+  tasks:
+    - name: Test 1 - raw without become
+      ansible.builtin.raw: echo "test-no-become"
 
-  roles:
-    - ec2_setup
+    - name: Test 2 - raw with become
+      ansible.builtin.raw: echo "test-with-become"
+      become: yes
+
+    - name: Test 3 - shell with become
+      ansible.builtin.shell: whoami
+      become: yes
