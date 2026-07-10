@@ -9,8 +9,3 @@
 
     - name: Enable and start nginx
       ansible.builtin.raw: sudo systemctl enable nginx && sudo systemctl start nginx
-    
-    - name: Harden SSH - disable root login
-      ansible.builtin.raw: >
-        sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-        && sudo systemctl reload sshd
