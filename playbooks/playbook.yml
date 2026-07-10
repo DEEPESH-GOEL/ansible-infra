@@ -1,7 +1,7 @@
 ---
 - name: Configure EC2 Instance
   hosts: myec2
-  gather_facts: yes
+  gather_facts: no
   remote_user: ec2-user
   tasks:
     - name: Install required packages
