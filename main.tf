@@ -62,11 +62,11 @@ variable "shared_workspace_id" {
   default     = "shared_vpc"
 }
 
-variable "harness_pat" {
-  description = "Harness PAT with read access to the shared_vpc workspace state."
-  type        = string
-  sensitive   = true
-}
+#variable "harness_pat" {
+#  description = "Harness PAT with read access to the shared_vpc workspace state."
+#  type        = string
+#  sensitive   = true
+#}
 
 ###############################################################################
 # The cross-workspace read.
@@ -87,7 +87,6 @@ data "terraform_remote_state" "network" {
   config = {
     address  = "https://app.harness.io/gateway/iacm/api/orgs/${var.harness_org_id}/projects/${var.harness_project_id}/workspaces/${var.shared_workspace_id}/terraform-backend?accountIdentifier=${var.harness_account_id}"
     username = "harness"
-    password = var.harness_pat
   }
 }
 
