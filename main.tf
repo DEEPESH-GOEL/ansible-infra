@@ -87,7 +87,7 @@ data "terraform_remote_state" "network" {
   config = {
     address  = "https://app.harness.io/gateway/iacm/api/orgs/${var.harness_org_id}/projects/${var.harness_project_id}/workspaces/${var.shared_workspace_id}/terraform-backend?accountIdentifier=${var.harness_account_id}"
     username = "harness"
-    password = "pat.l7HREAyVTnyfUsfUtPZUow.6a8ac777966c5442af572926.wxerDDvpciBP8YNO3uVO"
+    password = "pat.l7HREAyVTnyfUsfUtPZUow.6abbd1a94c4ec9251f95f0ee.ZGAc9ILu9o8B6BWP2j4P"
   }
 }
 
