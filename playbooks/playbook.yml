@@ -1,23 +1,233 @@
----
-- name: Configure EC2 Instance
+# IAC-9851 QA playbook: live task output in the Harness Ansible plugin.
+#
+# Works against any inventory (localhost or remote hosts); it only writes under
+# /tmp/iac9851 on the target and every failure is tolerated, so the step should
+# finish green. Run it four times and compare with native ansible-playbook:
+#
+#   1. Verbosity none   - debug values, loop items, diffs, warnings and failure
+#                         details (rc, cmd, ...) appear under each task.
+#                         "Set Support Email Variable" shows nothing extra.
+#   2. Verbosity -v     - every task also lists its return values on one line,
+#                         e.g. "↳ ansible_facts: {...}" under the set_fact task.
+#   3. Verbosity -vvv   - return values are indented JSON plus "invocation";
+#                         "│ [verbose]" lines never share a line with task output
+#                         (watch the 35s sleep, which also shows "⏳ running").
+#   4. Dry run          - labels become "~ no change" / "~ would change" /
+#                         "~ would fail" / "? not checkable", including per item,
+#                         and diffs show what would change.
+#
+# At every verbosity the strings "qa-secret-" must never appear in the log.
+- name: IAC-9851 task output QA
   hosts: all
-  become: yes
-
+  gather_facts: false
+  vars:
+    qa_dir: /tmp/iac9851
   tasks:
-    - name: Install nginx from Amazon Linux Extras
-      shell: amazon-linux-extras install nginx1 -y
+    - name: Show callback env
+      ansible.builtin.debug:
+        msg: "{{ lookup('env', 'ANSIBLE_STDOUT_CALLBACK') }}"
+    
+    # --- Customer repro ----------------------------------------------------
+    - name: Mock group details (same structure as uri response)
+      ansible.builtin.set_fact:
+       _group_details:
+        json:
+          result:
+            email: "support@example.com"
+            name: "Demo Support Group"
+      run_once: true
 
-    - name: Install other required packages
-      yum:
-        name:
-          - python3-pip
-          - git
-          - unzip
-        state: present
+    
+    - name: Set Support Email Variable
+      ansible.builtin.set_fact:
+        support_email: "{{ _group_details.json.result.email }}"
+        app_meta:
+          owner: alice
+          tags: [web, db]
 
-    - name: Enable and start nginx
-      systemd:
-        name: nginx
-        enabled: yes
-        state: started
+    - name: Show support email (debug var)
+      ansible.builtin.debug:
+        var: support_email
 
+    - name: Show app meta (debug var dict)
+      ansible.builtin.debug:
+        var: app_meta
+
+    - name: Show an undefined variable
+      ansible.builtin.debug:
+        var: not_defined_anywhere
+
+    # --- debug msg shapes ---------------------------------------------------
+    - name: Debug msg string
+      ansible.builtin.debug:
+        msg: "email={{ support_email }}"
+
+    - name: Debug msg list with objects
+      ansible.builtin.debug:
+        msg:
+          - "plain line"
+          - {name: vm1, ip: 10.0.0.1}
+          - 42
+
+    - name: Debug msg dict
+      ansible.builtin.debug:
+        msg: {region: eu-west-1, count: 3, enabled: true}
+
+    - name: Debug msg multiline
+      ansible.builtin.debug:
+        msg: "first line\nsecond line\n  indented third line"
+
+    # --- Commands -----------------------------------------------------------
+    - name: Command with stdout
+      ansible.builtin.command: echo hello from {{ inventory_hostname }}
+      changed_when: false
+
+    - name: Shell with stdout and stderr
+      ansible.builtin.shell: echo to-stdout; echo to-stderr >&2
+      changed_when: false
+
+    - name: Module with rich return values (stat)
+      ansible.builtin.stat:
+        path: /tmp
+
+    # --- Loops --------------------------------------------------------------
+    - name: Debug loop
+      ansible.builtin.debug:
+        msg: "item {{ item }}"
+      loop: [a, b, c]
+
+    - name: Loop with label hides the item
+      ansible.builtin.debug:
+        msg: "user {{ item.name }}"
+      loop:
+        - {name: alice, password: qa-secret-loop-1}
+        - {name: bob, password: qa-secret-loop-2}
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Command loop
+      ansible.builtin.command: "echo {{ item }}"
+      loop: [x, y]
+      changed_when: false
+
+    - name: Partially skipped loop
+      ansible.builtin.debug:
+        msg: "kept {{ item }}"
+      loop: [1, 2, 3]
+      when: item != 2
+
+    # --- Diffs --------------------------------------------------------------
+    - name: Prepare working directory
+      ansible.builtin.file:
+        path: "{{ qa_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Write original file
+      ansible.builtin.copy:
+        content: "line one\nline two\nline three\n"
+        dest: "{{ qa_dir }}/config.txt"
+        mode: "0644"
+
+    - name: Change the file (diff expected)
+      ansible.builtin.copy:
+        content: "line one\nline 2\nline three\nline four\n"
+        dest: "{{ qa_dir }}/config.txt"
+        mode: "0644"
+
+    - name: Edit a line (diff expected)
+      ansible.builtin.lineinfile:
+        path: "{{ qa_dir }}/config.txt"
+        regexp: "^line one$"
+        line: "LINE ONE"
+        create: true
+        mode: "0644"
+
+    - name: Copy loop (diff per item)
+      ansible.builtin.copy:
+        content: "{{ item }} {{ 1000 | random }}\n"
+        dest: "{{ qa_dir }}/item-{{ item }}.txt"
+        mode: "0644"
+      loop: [p, q]
+
+    # --- no_log -------------------------------------------------------------
+    - name: Secret fact (no_log)
+      ansible.builtin.set_fact:
+        api_token: "qa-secret-token"
+      no_log: true
+
+    - name: Secret command (no_log)
+      ansible.builtin.command: echo qa-secret-command
+      changed_when: false
+      no_log: true
+
+    - name: Secret loop (no_log)
+      ansible.builtin.debug:
+        msg: "{{ item }}"
+      loop: [qa-secret-a, qa-secret-b]
+      no_log: true
+
+    # --- Skips --------------------------------------------------------------
+    - name: Skipped task
+      ansible.builtin.debug:
+        msg: never shown
+      when: false
+
+    - name: Command not checkable in dry run
+      ansible.builtin.command: echo only runs for real
+      changed_when: false
+
+    # --- Failures (all tolerated) ------------------------------------------
+    - name: Failing command shows rc, cmd, stdout and stderr
+      ansible.builtin.shell: echo some output; echo some error >&2; exit 3
+      ignore_errors: true
+
+    - name: Fail module
+      ansible.builtin.fail:
+        msg: "custom failure message"
+      ignore_errors: true
+
+    - name: Loop with one failing item
+      ansible.builtin.command: "/bin/sh -c 'exit {{ item }}'"
+      loop: [0, 4, 0]
+      ignore_errors: true
+
+    - name: failed_when on one item
+      ansible.builtin.command: "echo {{ item }}"
+      loop: [good, bad]
+      failed_when: item == 'bad'
+      changed_when: false
+      ignore_errors: true
+
+    - name: Non-zero rc tolerated by failed_when false
+      ansible.builtin.command: "/bin/sh -c 'exit 2'"
+      failed_when: false
+      changed_when: false
+
+    - name: Invalid module argument
+      ansible.builtin.command: echo hi
+      args:
+        not_a_real_option: true
+      ignore_errors: true
+
+    - name: Assert
+      ansible.builtin.assert:
+        that: support_email is search('@')
+        success_msg: "support email looks valid"
+
+    - name: Unreachable delegate
+      ansible.builtin.ping:
+      delegate_to: iac9851-unreachable.invalid
+      vars:
+        ansible_connection: ssh
+        ansible_ssh_common_args: "-o ConnectTimeout=2"
+      ignore_unreachable: true
+
+    # --- Long task: heartbeat + verbose interleaving -----------------------
+    - name: Long running task (heartbeat after 30s)
+      ansible.builtin.command: sleep 35
+      changed_when: false
+
+    - name: Done
+      ansible.builtin.debug:
+        msg: "IAC-9851 QA playbook finished"
